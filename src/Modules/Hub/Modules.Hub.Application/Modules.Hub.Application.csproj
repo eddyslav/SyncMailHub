@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.9.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.3" />
+    <PackageReference Include="Serilog" Version="3.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Common\Shared.Results.FluentValidation\Shared.Results.FluentValidation.csproj" />
+    <ProjectReference Include="..\..\..\Common\Shared.Results\Shared.Results.csproj" />
+    <ProjectReference Include="..\Modules.Hub.Domain\Modules.Hub.Domain.csproj" />
+    <ProjectReference Include="..\Modules.Hub.IntegrationEvents\Modules.Hub.IntegrationEvents.csproj" />
+  </ItemGroup>
+
+</Project>

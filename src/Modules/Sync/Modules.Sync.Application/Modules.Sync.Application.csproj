@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.3" />
+    <PackageReference Include="Serilog" Version="3.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Common\Application\Application.csproj" />
+    <ProjectReference Include="..\..\Hub\Modules.Hub.Communication\Modules.Hub.Communication.csproj" />
+    <ProjectReference Include="..\..\Hub\Modules.Hub.IntegrationEvents\Modules.Hub.IntegrationEvents.csproj" />
+    <ProjectReference Include="..\Modules.Sync.Domain\Modules.Sync.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

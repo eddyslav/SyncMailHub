@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="FlexLabs.EntityFrameworkCore.Upsert" Version="8.0.0" />
+    <PackageReference Include="Google.Apis.Gmail.v1" Version="1.67.0.3287" />
+    <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.1.34" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.5.0" />
+    <PackageReference Include="MimeKit" Version="4.5.0" />
+    <PackageReference Include="Polly" Version="8.3.1" />
+    <PackageReference Include="Quartz" Version="3.8.1" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.3.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Common\Infrastructure\Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\Common\Shared.Options\Shared.Options.csproj" />
+    <ProjectReference Include="..\Modules.Hub.Application\Modules.Hub.Application.csproj" />
+    <ProjectReference Include="..\Modules.Hub.Communication\Modules.Hub.Communication.csproj" />
+    <ProjectReference Include="..\Modules.Hub.Persistence\Modules.Hub.Persistence.csproj" />
+  </ItemGroup>
+
+</Project>
