@@ -1,0 +1,15 @@
+version: '3.4'
+
+services:
+  syncmailhub-api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=https://+:443;http://+:80
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=password
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/syncmailhub.pfx
+    ports:
+      - "5000:80"
+      - "5001:443"
+    volumes:
+      - ~/.aspnet/https:/https:ro
+      - ./.containers/logs:/app/logs
