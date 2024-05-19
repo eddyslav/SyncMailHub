@@ -4,7 +4,7 @@ internal sealed class GoogleOAuthConfiguration
 {
 	private static IReadOnlyCollection<string> scopes =
 	[
-		"https://www.googleapis.com/auth/gmail.readonly",
+		"https://mail.google.com/",
 		"openid email",
 	];
 

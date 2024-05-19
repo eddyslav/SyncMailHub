@@ -105,4 +105,22 @@ internal sealed class MailService(IMailService mailService
 			, AsyncValueFactory
 			, cancellationToken);
 	}
+
+	public Task<Result<SendEmailResponse>> SendEmailAsync(SendEmailRequest request, CancellationToken cancellationToken = default) =>
+		mailService.SendEmailAsync(request, cancellationToken);
+
+	public Task<Result<SendReplyResponse>> SendReplyToConversationAsync(string conversationId, string body, CancellationToken cancellationToken = default) =>
+		mailService.SendReplyToConversationAsync(conversationId, body, cancellationToken);
+
+	public Task<Result> TrashEmailByIdAsync(string id, CancellationToken cancellationToken = default) =>
+		mailService.TrashEmailByIdAsync(id, cancellationToken);
+
+	public Task<Result> DeleteEmailByIdAsync(string id, CancellationToken cancellationToken = default) =>
+		mailService.DeleteEmailByIdAsync(id, cancellationToken);
+
+	public Task<Result> TrashConversationByIdAsync(string id, CancellationToken cancellationToken = default) =>
+		mailService.TrashConversationByIdAsync(id, cancellationToken);
+
+	public Task<Result> DeleteConversationByIdAsync(string id, CancellationToken cancellationToken = default) =>
+		mailService.DeleteConversationByIdAsync(id, cancellationToken);
 }

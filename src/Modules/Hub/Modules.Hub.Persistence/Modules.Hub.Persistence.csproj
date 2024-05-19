@@ -12,7 +12,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\Common\Persistence\Persistence.csproj" />
-    <ProjectReference Include="..\Modules.Hub.Application\Modules.Hub.Application.csproj" />
     <ProjectReference Include="..\Modules.Hub.Domain\Modules.Hub.Domain.csproj" />
   </ItemGroup>
 

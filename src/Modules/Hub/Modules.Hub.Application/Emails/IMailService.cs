@@ -13,4 +13,18 @@ public interface IMailService
 		, CancellationToken cancellationToken = default);
 
 	Task<Result<IReadOnlyList<Email>>> GetEmailsAsync(string conversationId, CancellationToken cancellationToken = default);
+
+	Task<Result<SendEmailResponse>> SendEmailAsync(SendEmailRequest request, CancellationToken cancellationToken = default);
+
+	Task<Result<SendReplyResponse>> SendReplyToConversationAsync(string conversationId
+		, string body
+		, CancellationToken cancellationToken = default);
+
+	Task<Result> TrashEmailByIdAsync(string id, CancellationToken cancellationToken = default);
+
+	Task<Result> DeleteEmailByIdAsync(string id, CancellationToken cancellationToken = default);
+
+	Task<Result> TrashConversationByIdAsync(string id, CancellationToken cancellationToken = default);
+
+	Task<Result> DeleteConversationByIdAsync(string id, CancellationToken cancellationToken = default);
 }

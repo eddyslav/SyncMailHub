@@ -1,4 +1,6 @@
-﻿using System.Text;
+﻿using System.Net;
+
+using System.Text;
 
 using Microsoft.IdentityModel.Tokens;
 
@@ -24,9 +26,18 @@ internal sealed class MailService(GoogleServiceAccountCredentials credentials
 	, ILogger logger
 	, IOptions<MailServiceConfiguration> options) : IMailService
 {
+	private static class HeaderNames
+	{
+		public const string Subject = "Subject";
+		public const string FromRecipient = "From";
+		public const string ToRecipients = "To";
+		public const string CcRecipients = "Cc";
+		public const string BccRecipients = "Bcc";
+	}
+
 	private static readonly IReadOnlyCollection<string> scopes =
 	[
-		GmailService.Scope.GmailReadonly,
+		GmailService.Scope.MailGoogleCom,
 	];
 
 	private static readonly ICollection<string> defaultFoldersToIgnoreEmailIn = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -224,10 +235,31 @@ internal sealed class MailService(GoogleServiceAccountCredentials credentials
 			.Map(labelsResponse => MapToModel(labelsResponse.Labels).ToList() as IReadOnlyList<EmailsFolder>);
 	}
 
-	public Task<Result<EmailsFolderCount>> GetEmailsFolderCountAsync(string folderId, CancellationToken cancellationToken = default) =>
-		Result.Create(service.Users.Labels.Get(currentUserId, folderId))
-			.Bind(labelsRequest => TryExecuteRequestAsync<UsersResource.LabelsResource.GetRequest, Label>(labelsRequest, cancellationToken))
+	public Task<Result<EmailsFolderCount>> GetEmailsFolderCountAsync(string folderId, CancellationToken cancellationToken = default)
+	{
+		async Task<Result<Label>> GetTargetLabelAsync(string folderId, CancellationToken cancellationToken)
+		{
+			var request = service.Users.Labels.Get(currentUserId, folderId);
+
+			try
+			{
+				return await request.ExecuteAsync(cancellationToken);
+			}
+			catch (GoogleApiException apiException) when (apiException.HttpStatusCode == HttpStatusCode.NotFound)
+			{
+				return Result.Failure<Label>(EmailsFolderErrors.NotFound);
+			}
+			catch (GoogleApiException apiException) when (apiException.HttpStatusCode == HttpStatusCode.NotFound)
+			{
+				logger.Error(apiException, "Failed to retrieve statistics for \"{folderId}\" folder", folderId);
+				return Result.Failure<Label>(ServiceAccountErrors.Google.ApiRequestFailed);
+			}
+		}
+
+		return Result.Success(folderId)
+			.Bind(folderId => GetTargetLabelAsync(folderId, cancellationToken))
 			.Map(label => new EmailsFolderCount(label.MessagesTotal!.Value, label.MessagesUnread!.Value));
+	}
 
 	public Task<Result<PaginatedList<EmailsConversation>>> GetEmailsConversationsAsync(string folderId
 		, string? nextPageToken
@@ -245,8 +277,6 @@ internal sealed class MailService(GoogleServiceAccountCredentials credentials
 
 		static IEnumerable<EmailsConversation> MapToModel(IEnumerable<EmailsThread> sourceThreads)
 		{
-			const string subjectHeaderName = "Subject";
-
 			foreach (var thread in sourceThreads)
 			{
 				var firstEmail = thread.Messages.MinBy(threadMessage => threadMessage.InternalDate);
@@ -254,9 +284,34 @@ internal sealed class MailService(GoogleServiceAccountCredentials credentials
 
 				// for drafts
 				var subject = firstEmail.Payload.Headers
-					.FirstOrDefault(header => header.Name.Equals(subjectHeaderName, StringComparison.OrdinalIgnoreCase));
+					.FirstOrDefault(header => header.Name.Equals(HeaderNames.Subject, StringComparison.OrdinalIgnoreCase));
 
 				yield return new EmailsConversation(thread.Id, subject?.Value);
+			}
+		}
+
+		async Task<Result<ListThreadsResponse>> GetThreadsInFolderAsync(string folderId
+			, string? pageToken
+			, CancellationToken cancellationToken)
+		{
+			var request = service.Users.Threads.List(currentUserId);
+			request.LabelIds = folderId;
+			request.PageToken = nextPageToken;
+
+			try
+			{
+				return await request.ExecuteAsync(cancellationToken);
+			}
+			catch (GoogleApiException apiException)
+				when (apiException.HttpStatusCode == HttpStatusCode.BadRequest
+					&& apiException.Message.Contains("label"))
+			{
+				return Result.Failure<ListThreadsResponse>(EmailsFolderErrors.NotFound);
+			}
+			catch (GoogleApiException apiException) when (apiException.HttpStatusCode == HttpStatusCode.NotFound)
+			{
+				logger.Error(apiException, "Failed to retrieve threads per \"{folderId}\" folder", folderId);
+				return Result.Failure<ListThreadsResponse>(ServiceAccountErrors.Google.ApiRequestFailed);
 			}
 		}
 
@@ -266,13 +321,8 @@ internal sealed class MailService(GoogleServiceAccountCredentials credentials
 				.Map(fullThreads => MapToModel(fullThreads).ToList())
 				.Map(emailsConversations => new PaginatedList<EmailsConversation>(emailsConversations, sourceResponse.NextPageToken));
 
-		var request = service.Users.Threads.List(currentUserId);
-		request.LabelIds = folderId;
-		request.PageToken = nextPageToken;
-
-		return Result.Success(request)
-			.Bind(threadsRequest =>
-				TryExecuteRequestAsync<UsersResource.ThreadsResource.ListRequest, ListThreadsResponse>(threadsRequest, cancellationToken))
+		return Result.Success()
+			.Bind(() => GetThreadsInFolderAsync(folderId, nextPageToken, cancellationToken))
 			.Bind(fullThreadsResponse => GetEmailsConversationsAsync(fullThreadsResponse, cancellationToken));
 	}
 
@@ -337,11 +387,6 @@ internal sealed class MailService(GoogleServiceAccountCredentials credentials
 				}
 			}
 
-			const string fromAddressHeaderName = "From";
-			const string toAddressesHeaderName = "To";
-			const string ccAddressesHeaderName = "Cc";
-			const string bccAddressesHeaderName = "Bcc";
-
 			foreach (var message in sourceMessages)
 			{
 				if (message.LabelIds.Any(defaultFoldersToIgnoreEmailIn.Contains))
@@ -354,14 +399,14 @@ internal sealed class MailService(GoogleServiceAccountCredentials credentials
 				Debug.Assert(headers?.Any() ?? false);
 
 				var rawFromEmailAddress = headers.First(header =>
-					header.Name.Equals(fromAddressHeaderName, StringComparison.OrdinalIgnoreCase)).Value;
+					header.Name.Equals(HeaderNames.FromRecipient, StringComparison.OrdinalIgnoreCase)).Value;
 				var parsedFromEmailAddress = MailboxAddress.Parse(rawFromEmailAddress);
 
 				var recipients = Enumerable.Empty<Email.EmailRecipient>();
 				recipients = recipients.Append(MapToRecipientModel(parsedFromEmailAddress, Email.EmailRecipient.EmailRecipientType.From));
-				recipients = recipients.Concat(TryParseRecipients(headers, toAddressesHeaderName, Email.EmailRecipient.EmailRecipientType.To));
-				recipients = recipients.Concat(TryParseRecipients(headers, ccAddressesHeaderName, Email.EmailRecipient.EmailRecipientType.Cc));
-				recipients = recipients.Concat(TryParseRecipients(headers, bccAddressesHeaderName, Email.EmailRecipient.EmailRecipientType.Bcc));
+				recipients = recipients.Concat(TryParseRecipients(headers, HeaderNames.ToRecipients, Email.EmailRecipient.EmailRecipientType.To));
+				recipients = recipients.Concat(TryParseRecipients(headers, HeaderNames.CcRecipients, Email.EmailRecipient.EmailRecipientType.Cc));
+				recipients = recipients.Concat(TryParseRecipients(headers, HeaderNames.BccRecipients, Email.EmailRecipient.EmailRecipientType.Bcc));
 
 				var htmlBody = TryGetHtmlBody(messagePayload);
 				var emailAddressesList = recipients.ToList();
@@ -372,11 +417,318 @@ internal sealed class MailService(GoogleServiceAccountCredentials credentials
 			}
 		}
 
-		var request = service.Users.Threads.Get(currentUserId, conversationId);
-		request.Format = UsersResource.ThreadsResource.GetRequest.FormatEnum.Full;
+		async Task<Result<EmailsThread>> GetTargetThreadAsync(string conversationId, CancellationToken cancellationToken)
+		{
+			var request = service.Users.Threads.Get(currentUserId, conversationId);
+			request.Format = UsersResource.ThreadsResource.GetRequest.FormatEnum.Full;
+
+			try
+			{
+				return await request.ExecuteAsync(cancellationToken);
+			}
+			catch (GoogleApiException apiException) when (apiException.HttpStatusCode == HttpStatusCode.NotFound)
+			{
+				return Result.Failure<EmailsThread>(EmailsConversationErrors.NotFound);
+			}
+			catch (GoogleApiException apiException) when (apiException.HttpStatusCode == HttpStatusCode.NotFound)
+			{
+				logger.Error(apiException, "Failed to retrieve \"{conversationId}\" conversation", conversationId);
+				return Result.Failure<EmailsThread>(ServiceAccountErrors.Google.ApiRequestFailed);
+			}
+		}
+
+		return Result.Success(conversationId)
+			.Bind(conversationId => GetTargetThreadAsync(conversationId, cancellationToken))
+			.Map(emailsThread => MapToModel(emailsThread.Messages).ToList() as IReadOnlyList<Email>);
+	}
+
+	public Task<Result<SendEmailResponse>> SendEmailAsync(SendEmailRequest request, CancellationToken cancellationToken = default)
+	{
+		static void CopyRecipients(IReadOnlyList<string>? sourceRecipients, InternetAddressList target)
+		{
+			if (!(sourceRecipients?.Any() ?? false))
+			{
+				return;
+			}
+
+			target.AddRange(sourceRecipients.Select(recipient => new MailboxAddress(null, recipient)));
+		}
+
+		static MimeMessage MapToMimeMessage(SendEmailRequest request)
+		{
+			var mimeMessage = new MimeMessage
+			{
+				Subject = request.Subject
+			};
+
+			var bodyBuilder = new BodyBuilder
+			{
+				HtmlBody = request.Body
+			};
+			mimeMessage.Body = bodyBuilder.ToMessageBody();
+
+			CopyRecipients(request.To, mimeMessage.To);
+			CopyRecipients(request.Cc, mimeMessage.Cc);
+			CopyRecipients(request.Bcc, mimeMessage.Bcc);
+
+			return mimeMessage;
+		}
+
+		static async Task<Message> MapToMessageAsync(MimeMessage sourceMessage, CancellationToken cancellationToken)
+		{
+			var rawMessageContent = default(string);
+
+			using var targetStream = new MemoryStream();
+			await sourceMessage.WriteToAsync(targetStream, cancellationToken);
+
+			rawMessageContent = Base64UrlEncoder.Encode(targetStream.ToArray());
+
+			return new Message
+			{
+				Raw = rawMessageContent,
+			};
+		}
 
 		return Result.Success(request)
-			.Bind(request => TryExecuteRequestAsync<UsersResource.ThreadsResource.GetRequest, EmailsThread>(request, cancellationToken))
-			.Map(emailsThread => MapToModel(emailsThread.Messages).ToList() as IReadOnlyList<Email>);
+			.Map(MapToMimeMessage)
+			.Map(mimeMessage => MapToMessageAsync(mimeMessage, cancellationToken))
+			.Map(message => service.Users.Messages.Send(message, currentUserId))
+			.Bind(request => TryExecuteRequestAsync<UsersResource.MessagesResource.SendRequest, Message>(request, cancellationToken))
+			.Map(response => new SendEmailResponse(response.ThreadId, response.Id));
+	}
+
+	public Task<Result<SendReplyResponse>> SendReplyToConversationAsync(string conversationId
+		, string body
+		, CancellationToken cancellationToken = default)
+	{
+		static InternetAddressList? TryGetRecipients(Message sourceMessage, string recipientsType)
+		{
+			var header = sourceMessage.Payload.Headers.FirstOrDefault(header =>
+				header.Name.Equals(recipientsType, StringComparison.OrdinalIgnoreCase))?.Value;
+
+			if (string.IsNullOrEmpty(header))
+			{
+				return null;
+			}
+
+			return InternetAddressList.Parse(header);
+		}
+
+		static void CopyRecipients(Message sourceMessage
+			, string recipientsType
+			, InternetAddressList target)
+		{
+			var sourceRecipients = TryGetRecipients(sourceMessage, recipientsType);
+			if (sourceRecipients is null)
+			{
+				return;
+			}
+
+			target.AddRange(sourceRecipients);
+		}
+
+		static MimeMessage CreateMimeMessage(string body, Message sourceMessage)
+		{
+			var headers = sourceMessage.Payload.Headers;
+			var subject = headers
+				.First(header => header.Name.Equals(HeaderNames.Subject, StringComparison.OrdinalIgnoreCase))
+				.Value;
+
+			var mimeMessage = new MimeMessage
+			{
+				Subject = subject,
+			};
+
+			CopyRecipients(sourceMessage, HeaderNames.FromRecipient, mimeMessage.To);
+			CopyRecipients(sourceMessage, HeaderNames.ToRecipients, mimeMessage.To);
+			CopyRecipients(sourceMessage, HeaderNames.CcRecipients, mimeMessage.Cc);
+
+			var bodyBuilder = new BodyBuilder
+			{
+				HtmlBody = body,
+			};
+
+			mimeMessage.Body = bodyBuilder.ToMessageBody();
+
+			return mimeMessage;
+		}
+
+		static async Task<Message> CreateMessageAsync(string conversationId
+			, MimeMessage sourceMessage
+			, CancellationToken cancellationToken)
+		{
+			var rawMessageContent = default(string);
+
+			using var targetStream = new MemoryStream();
+			await sourceMessage.WriteToAsync(targetStream, cancellationToken);
+
+			rawMessageContent = Base64UrlEncoder.Encode(targetStream.ToArray());
+
+			return new Message
+			{
+				Raw = rawMessageContent,
+				ThreadId = conversationId,
+			};
+		}
+
+		async Task<Result<EmailsThread>> GetTargetThreadAsync(string conversationId, CancellationToken cancellationToken)
+		{
+			var threadRequest = service.Users.Threads.Get(currentUserId, conversationId);
+			threadRequest.Format = UsersResource.ThreadsResource.GetRequest.FormatEnum.Metadata;
+			threadRequest.MetadataHeaders = new[]
+			{
+				HeaderNames.Subject,
+				HeaderNames.FromRecipient,
+				HeaderNames.ToRecipients,
+				HeaderNames.CcRecipients,
+			};
+
+			threadRequest.Fields = "messages";
+
+			try
+			{
+				return await threadRequest.ExecuteAsync(cancellationToken);
+			}
+			catch (GoogleApiException apiException) when (apiException.HttpStatusCode == HttpStatusCode.NotFound)
+			{
+				return Result.Failure<EmailsThread>(EmailsConversationErrors.NotFound);
+			}
+			catch (GoogleApiException apiException)
+			{
+				logger.Error(apiException, "Failed to retrieve \"{conversationId}\" thread", conversationId);
+				return Result.Failure<EmailsThread>(ServiceAccountErrors.Google.ApiRequestFailed);
+			}
+		}
+
+		async Task<Result<Message>> TrySendResponseAsync(Message message, CancellationToken cancellationToken)
+		{
+			var request = service.Users.Messages.Send(message, currentUserId);
+
+			try
+			{
+				return await request.ExecuteAsync(cancellationToken);
+			}
+			catch (GoogleApiException apiException) when (apiException.HttpStatusCode == HttpStatusCode.NotFound)
+			{
+				return Result.Failure<Message>(EmailsConversationErrors.NotFound);
+			}
+			catch (GoogleApiException apiException)
+			{
+				logger.Error(apiException, "Failed to send reply to \"{conversationId}\" conversation", conversationId);
+				return Result.Failure<Message>(ServiceAccountErrors.Google.ApiRequestFailed);
+			}
+		}
+
+		return Result.Success()
+			.Bind(() => GetTargetThreadAsync(conversationId, cancellationToken))
+			.Map(thread => thread.Messages.First())
+			.Map(firstMessage => CreateMimeMessage(body, firstMessage))
+			.Map(mimeMessage => CreateMessageAsync(conversationId, mimeMessage, cancellationToken))
+			.Bind(sourceMessage => TrySendResponseAsync(sourceMessage, cancellationToken))
+			.Map(response => new SendReplyResponse(response.Id));
+	}
+
+	public Task<Result> TrashEmailByIdAsync(string id, CancellationToken cancellationToken = default)
+	{
+		async Task<Result> TryExecuteAsync(string sourceId
+			, UsersResource.MessagesResource.TrashRequest request
+			, CancellationToken cancellationToken)
+		{
+			try
+			{
+				await request.ExecuteAsync(cancellationToken);
+				return Result.Success();
+			}
+			catch (GoogleApiException apiException) when (apiException.HttpStatusCode == HttpStatusCode.NotFound)
+			{
+				return Result.Failure(EmailErrors.NotFound);
+			}
+			catch (GoogleApiException apiException)
+			{
+				logger.Error(apiException, "Failed to trash \"{emailId}\" email", sourceId);
+				return Result.Failure(ServiceAccountErrors.Google.ApiRequestFailed);
+			}
+		}
+
+		return Result.Create(service.Users.Messages.Trash(currentUserId, id))
+			.Bind(request => TryExecuteAsync(id, request, cancellationToken));
+	}
+
+	public Task<Result> DeleteEmailByIdAsync(string id, CancellationToken cancellationToken = default)
+	{
+		async Task<Result> TryExecuteAsync(string sourceId
+			, UsersResource.MessagesResource.DeleteRequest request
+			, CancellationToken cancellationToken)
+		{
+			try
+			{
+				await request.ExecuteAsync(cancellationToken);
+				return Result.Success();
+			}
+			catch (GoogleApiException apiException) when (apiException.HttpStatusCode == HttpStatusCode.NotFound)
+			{
+				return Result.Failure(EmailErrors.NotFound);
+			}
+			catch (GoogleApiException apiException)
+			{
+				logger.Error(apiException, "Failed to trash \"{emailId}\" email", sourceId);
+				return Result.Failure(ServiceAccountErrors.Google.ApiRequestFailed);
+			}
+		}
+
+		return Result.Create(service.Users.Messages.Delete(currentUserId, id))
+			.Bind(request => TryExecuteAsync(id, request, cancellationToken));
+	}
+
+	public Task<Result> TrashConversationByIdAsync(string id, CancellationToken cancellationToken = default)
+	{
+		async Task<Result> TryExecuteAsync(string sourceId
+			, UsersResource.ThreadsResource.TrashRequest request
+			, CancellationToken cancellationToken)
+		{
+			try
+			{
+				await request.ExecuteAsync(cancellationToken);
+				return Result.Success();
+			}
+			catch (GoogleApiException apiException) when (apiException.HttpStatusCode == HttpStatusCode.NotFound)
+			{
+				return Result.Failure(EmailsConversationErrors.NotFound);
+			}
+			catch (GoogleApiException apiException)
+			{
+				logger.Error(apiException, "Failed to trash \"{conversationId}\" conversation", sourceId);
+				return Result.Failure(ServiceAccountErrors.Google.ApiRequestFailed);
+			}
+		}
+
+		return Result.Create(service.Users.Threads.Trash(currentUserId, id))
+			.Bind(request => TryExecuteAsync(id, request, cancellationToken));
+	}
+
+	public Task<Result> DeleteConversationByIdAsync(string id, CancellationToken cancellationToken = default)
+	{
+		async Task<Result> TryExecuteAsync(string sourceId
+			, UsersResource.ThreadsResource.DeleteRequest request
+			, CancellationToken cancellationToken)
+		{
+			try
+			{
+				await request.ExecuteAsync(cancellationToken);
+				return Result.Success();
+			}
+			catch (GoogleApiException apiException) when (apiException.HttpStatusCode == HttpStatusCode.NotFound)
+			{
+				return Result.Failure(EmailsConversationErrors.NotFound);
+			}
+			catch (GoogleApiException apiException)
+			{
+				logger.Error(apiException, "Failed to delete \"{conversationId}\" conversation", sourceId);
+				return Result.Failure(ServiceAccountErrors.Google.ApiRequestFailed);
+			}
+		}
+
+		return Result.Create(service.Users.Threads.Delete(currentUserId, id))
+			.Bind(request => TryExecuteAsync(id, request, cancellationToken));
 	}
 }

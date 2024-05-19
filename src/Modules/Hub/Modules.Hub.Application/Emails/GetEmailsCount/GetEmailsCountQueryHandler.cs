@@ -5,7 +5,7 @@ internal sealed class GetEmailsCountQueryHandler(IServiceAccountRepository accou
 	, IMailServiceFactory mailServiceFactory)
 	: AccountQueryHandlerBase<GetEmailsCountQuery, EmailsCounter>(accountRepository, userContextAccessor, mailServiceFactory)
 {
-	protected override Task<Result<EmailsCounter>> HandleAsync(GetEmailsCountQuery query
+	protected override Task<Result<EmailsCounter>> HandleAsync(GetEmailsCountQuery _
 		, IMailService mailService
 		, CancellationToken cancellationToken) =>
 		mailService.GetEmailsCountAsync(cancellationToken);

@@ -91,6 +91,9 @@ public static class ResultExtensions
 			? await func(result.Value)
 			: Result.Failure(result.Error);
 
+	public static async Task<Result> Bind<T>(this Task<Result<T>> result, Func<T, Task<Result>> func) where T : notnull =>
+		await (await result).Bind(func);
+
 	public static Result<T1> Bind<T0, T1>(this Result<T0> result, Func<T0, Result<T1>> func)
 		where T0 : notnull
 		where T1 : notnull =>
