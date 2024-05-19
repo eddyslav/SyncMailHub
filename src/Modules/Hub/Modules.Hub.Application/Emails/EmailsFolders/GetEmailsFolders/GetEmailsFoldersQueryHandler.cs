@@ -5,7 +5,7 @@ internal sealed class GetEmailsFoldersQueryHandler(IServiceAccountRepository acc
 	, IMailServiceFactory mailServiceFactory)
 	: AccountQueryHandlerBase<GetEmailsFoldersQuery, IReadOnlyList<EmailsFolder>>(accountRepository, userContextAccessor, mailServiceFactory)
 {
-	protected override Task<Result<IReadOnlyList<EmailsFolder>>> HandleAsync(GetEmailsFoldersQuery query
+	protected override Task<Result<IReadOnlyList<EmailsFolder>>> HandleAsync(GetEmailsFoldersQuery _
 		, IMailService mailService
 		, CancellationToken cancellationToken) =>
 		mailService.GetEmailsFoldersAsync(cancellationToken);

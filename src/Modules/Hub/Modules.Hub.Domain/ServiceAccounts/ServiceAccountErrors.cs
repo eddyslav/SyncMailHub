@@ -11,6 +11,6 @@ public static class ServiceAccountErrors
 	{
 		public static Error StateMismatch { get; } = new BadRequestError("GoogleServiceAccount.MismatchState", "State has been changed. Try authenticating again");
 		public static Error TokenError { get; } = new BadRequestError("GoogleServiceAccount.AuthFailed", "Retrieved token does not contain completed information. Please try setting account again");
-		public static Error ApiRequestFailed { get; } = new("GoogleServiceAccount.ApiRequestFailed", "Failed to retrieve mailbox data with unknown external error");
+		public static Error ApiRequestFailed { get; } = new("GoogleServiceAccount.ApiRequestFailed", "Failed to execute request to GMail service");
 	}
 }

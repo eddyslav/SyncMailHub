@@ -4,19 +4,12 @@ using Application.DateTimeProvider;
 
 namespace Persistence.Interceptors;
 
-public sealed class TrackEntitiesInterceptor : SaveChangesInterceptor
+public sealed class TrackEntitiesInterceptor(IDateTimeProvider dateTimeProvider) : SaveChangesInterceptor
 {
 	private static void SetCurrentPropertyValue(EntityEntry entry
 		, string propertyName
 		, DateTimeOffset now) =>
 		entry.Property(propertyName).CurrentValue = now;
-
-	private readonly IDateTimeProvider dateTimeProvider;
-
-	public TrackEntitiesInterceptor(IDateTimeProvider dateTimeProvider)
-	{
-		this.dateTimeProvider = dateTimeProvider;
-	}
 
 	public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData
 		, InterceptionResult<int> result
