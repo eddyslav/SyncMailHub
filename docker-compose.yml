@@ -52,3 +52,9 @@ services:
       - ./.containers/redis/data:/data
     ports:
       - 6379:6379
+
+  syncmailhub-redis-insight:
+    image: redis/redisinsight:latest
+    container_name: syncmailhub-redis-insight
+    ports:
+      - 5540:5540
