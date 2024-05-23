@@ -129,7 +129,7 @@ internal class ServiceAccountSyncSession(GoogleServiceAccountCredentials credent
 			void AddConversationChange(Message sourceMessage)
 			{
 				folderIdsByConversationIds.AddOrUpdate(sourceMessage.ThreadId
-					, _ => sourceMessage.LabelIds.ToHashSet()
+					, _ => [..sourceMessage.LabelIds ?? []]
 					, (_, folderIds) =>
 					{
 						folderIds.UnionWith(sourceMessage.LabelIds);
