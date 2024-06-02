@@ -20,14 +20,14 @@ internal sealed class IdempotentIntegrationEventHandler<TDbContext, TIntegration
 		return dbContext.SaveChangesAsync(cancellationToken);
 	}
 
-	public override async Task Handle(TIntegrationEvent integrationEvent, CancellationToken cancellationToken)
+	public override async Task HandleAsync(TIntegrationEvent integrationEvent, CancellationToken cancellationToken)
 	{
 		if (await IsInboxMessageConsumedAsync(integrationEvent, cancellationToken))
 		{
 			return;
 		}
 
-		await integrationEventHandler.Handle(integrationEvent, cancellationToken);
+		await integrationEventHandler.HandleAsync(integrationEvent, cancellationToken);
 
 		await SaveInboxMessageConsumedAsync(integrationEvent, cancellationToken);
 	}

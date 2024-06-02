@@ -10,51 +10,33 @@ services:
     depends_on:
       - syncmailhub-db
 
+  # syncmailhub-app:
+  #   image: ${DOCKER_REGISTRY-}app
+  #   container_name: syncmailhub-app
+  #   build:
+  #     context: src/web-app
+  #     dockerfile: Dockerfile
+  #   depends_on:
+  #     - syncmailhub-api
+
   syncmailhub-db:
     image: postgres:latest
     container_name: syncmailhub-db
-    environment:
-      - POSTGRES_DB=syncmailhub
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-    volumes:
-      - ./.containers/database:/var/lib/postgresql/data
-    ports:
-      - 5432:5432
 
   syncmailhub-db-management:
     image: dpage/pgadmin4:latest
     container_name: syncmailhub-db_management
     depends_on:
       - syncmailhub-db
-    volumes:
-      - ./.files/dev_servers.json:/pgadmin4/servers.json
-      - ./.containers/database_management:/var/lib/pgadmin
-    ports:
-      - 5101:80
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
 
   syncmailhub-seq:
     image: datalust/seq:latest
     container_name: syncmailhub-seq
-    environment:
-      - ACCEPT_EULA=Y
-    ports:
-      - 5341:5341
-      - 8081:80
 
   syncmailhub-redis:
     image: redis:latest
     container_name: syncmailhub-redis
-    volumes:
-      - ./.containers/redis/data:/data
-    ports:
-      - 6379:6379
 
   syncmailhub-redis-insight:
     image: redis/redisinsight:latest
     container_name: syncmailhub-redis-insight
-    ports:
-      - 5540:5540

@@ -8,7 +8,6 @@ internal sealed class UpdateSyncSchedulesJob(IServiceAccountRepository accountRe
 {
 	private static readonly IEnumerable<IJobDetail> syncingJobs = [
 		JobBuilder.Create(typeof(ProcessMailboxEmailsJob))
-			.WithIdentity(typeof(ProcessMailboxEmailsJob).FullName!)
 			.DisallowConcurrentExecution()
 			.Build(),
 	];

@@ -2,4 +2,4 @@
 
 public sealed record EmailsFolder(string Id
 	, string Name
-	, string? ParentFolderId);
+	, IReadOnlyList<EmailsFolder>? Children);

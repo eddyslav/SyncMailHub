@@ -4,6 +4,6 @@
 internal sealed class ServiceAccountDeletedIntegrationEventHandler(IServiceAccountRepository accountRepository)
 	: IntegrationEventHandler<ServiceAccountDeletedIntegrationEvent>
 {
-	public override Task Handle(ServiceAccountDeletedIntegrationEvent integrationEvent, CancellationToken cancellationToken) =>
+	public override Task HandleAsync(ServiceAccountDeletedIntegrationEvent integrationEvent, CancellationToken cancellationToken) =>
 		accountRepository.RemoveByHubIdAsync(integrationEvent.AccountId, cancellationToken);
 }

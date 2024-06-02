@@ -12,7 +12,13 @@ public sealed class ServiceAccountRepository(HubDbContext dbContext) : IServiceA
 		dbContext.ServiceAccounts
 			.FirstOrDefaultAsync(account => account.Id == id, cancellationToken);
 
-	public async Task<IReadOnlyList<ServiceAccount>> GetAllAccountsPerUserAsync(UserId userId, CancellationToken cancellationToken = default) =>
+	public Task<ServiceAccount?> GetByIdAndUserIdAsync(ServiceAccountId id
+		, UserId userId
+		, CancellationToken cancellationToken = default) =>
+		dbContext.ServiceAccounts
+			.FirstOrDefaultAsync(account => account.Id == id && account.UserId == userId, cancellationToken);
+
+	public async Task<IReadOnlyList<ServiceAccount>> GetAllPerUserAsync(UserId userId, CancellationToken cancellationToken = default) =>
 		await dbContext.ServiceAccounts
 			.Where(account => account.UserId == userId)
 			.ToListAsync(cancellationToken);

@@ -3,8 +3,8 @@
 public abstract class IntegrationEventHandler<TIntegrationEvent> : IIntegrationEventHandler<TIntegrationEvent>, IIntegrationEventHandler
 	where TIntegrationEvent : IIntegrationEvent
 {
-	public abstract Task Handle(TIntegrationEvent integrationEvent, CancellationToken cancellationToken);
+	public abstract Task HandleAsync(TIntegrationEvent integrationEvent, CancellationToken cancellationToken);
 
-	public Task Handle(IIntegrationEvent integrationEvent, CancellationToken cancellationToken) =>
-		Handle((TIntegrationEvent)integrationEvent, cancellationToken);
+	public Task HandleAsync(IIntegrationEvent integrationEvent, CancellationToken cancellationToken) =>
+		HandleAsync((TIntegrationEvent)integrationEvent, cancellationToken);
 }

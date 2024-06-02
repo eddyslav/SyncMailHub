@@ -10,5 +10,3 @@ global using Shared.Results;
 global using Shared.Results.Extensions;
 
 global using Modules.Hub.Domain.ServiceAccounts;
-
-global using Modules.Hub.Application.ServiceAccounts.AddServiceAccount.Google;

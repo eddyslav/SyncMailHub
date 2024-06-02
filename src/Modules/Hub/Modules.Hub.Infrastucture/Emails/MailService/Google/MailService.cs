@@ -26,6 +26,18 @@ internal sealed class MailService(GoogleServiceAccountCredentials credentials
 	, ILogger logger
 	, IOptions<MailServiceConfiguration> options) : IMailService
 {
+	private sealed record EmailsFolderBuilder(string Id, string Name)
+	{
+		private ICollection<EmailsFolderBuilder>? children;
+
+		public ICollection<EmailsFolderBuilder> Children => children ??= [];
+
+		public EmailsFolder ToEmailsFolder() =>
+			new(Id
+				, Name
+				, Children.Select(c => c.ToEmailsFolder()).ToList());
+	}
+
 	private static class HeaderNames
 	{
 		public const string Subject = "Subject";
@@ -170,26 +182,29 @@ internal sealed class MailService(GoogleServiceAccountCredentials credentials
 		return results;
 	}
 
-	private Task<Result<IReadOnlyList<T>>> TryGetFullResourcesAsync<T>(ICollection<T> sourceEntities
+	private async Task<Result<IReadOnlyList<T>>> TryGetFullResourcesAsync<T>(ICollection<T>? sourceEntities
 		, Func<string, T, GmailService, IClientServiceRequest> requestFactory
 		, CancellationToken cancellationToken)
 		where T : class =>
-		sourceEntities.Count > configuration.MaxEntitiesPerBatch
-			? TryGetFullResourcesInChunksAsync(sourceEntities, requestFactory, cancellationToken)
-			: TryGetFullResourcesWithRetriesAsync(sourceEntities, requestFactory, cancellationToken);
+		sourceEntities?.Any() ?? false
+			? sourceEntities.Count > configuration.MaxEntitiesPerBatch
+				? await TryGetFullResourcesInChunksAsync(sourceEntities, requestFactory, cancellationToken)
+				: await TryGetFullResourcesWithRetriesAsync(sourceEntities, requestFactory, cancellationToken)
+			: Array.Empty<T>();
 
 	public Task<Result<EmailsCounter>> GetEmailsCountAsync(CancellationToken cancellationToken) =>
 		Result.Create(service.Users.GetProfile(currentUserId))
 			.Bind(profileRequest => TryExecuteRequestAsync<UsersResource.GetProfileRequest, Profile>(profileRequest, cancellationToken))
 			.Map(profile => new EmailsCounter(profile.MessagesTotal ?? 0));
 
-	public Task<Result<IReadOnlyList<EmailsFolder>>> GetEmailsFoldersAsync(CancellationToken cancellationToken = default)
+	public async Task<Result<IReadOnlyList<EmailsFolder>>> GetEmailsFoldersAsync(CancellationToken cancellationToken = default)
 	{
-		static IEnumerable<EmailsFolder> MapToModel(ICollection<Label> labels)
+		static IReadOnlyList<EmailsFolder> MapToModel(ICollection<Label> labels)
 		{
-			var labelNamesToId = default(IReadOnlyDictionary<string, string>);
-
 			const string folderHiddenVisibilityOption = "labelHide";
+
+			var folders = new Dictionary<string, EmailsFolderBuilder>();
+			var rootFolders = new List<EmailsFolderBuilder>();
 
 			foreach (var label in labels)
 			{
@@ -207,15 +222,10 @@ internal sealed class MailService(GoogleServiceAccountCredentials credentials
 					? null
 					: labelNameSpan[..slashIndex].ToString();
 
-				if (parentFolderName is not null)
-				{
-					labelNamesToId ??= labels.ToDictionary(label => label.Name, label => label.Id);
-				}
-
 				var parentLabelId = default(string);
 				if (parentFolderName is not null)
 				{
-					labelNamesToId!.TryGetValue(parentFolderName, out parentLabelId);
+					parentLabelId = labels.FirstOrDefault(l => l.Name == parentFolderName)?.Id;
 				}
 
 				labelName = parentLabelId is null
@@ -224,15 +234,26 @@ internal sealed class MailService(GoogleServiceAccountCredentials credentials
 						? "/"
 						: labelNameSpan[(slashIndex + 1)..].ToString();
 
-				yield return new EmailsFolder(label.Id
-					, labelName
-					, parentLabelId);
+				var folder = new EmailsFolderBuilder(label.Id, labelName);
+
+				folders[label.Id] = folder;
+
+				if (parentLabelId is null)
+				{
+					rootFolders.Add(folder);
+				}
+				else if (folders.TryGetValue(parentLabelId, out var parentFolder))
+				{
+					parentFolder.Children.Add(folder);
+				}
 			}
+
+			return rootFolders.Select(f => f.ToEmailsFolder()).ToList().AsReadOnly();
 		}
 
-		return Result.Create(service.Users.Labels.List(currentUserId))
+		return await Result.Create(service.Users.Labels.List(currentUserId))
 			.Bind(labelsRequest => TryExecuteRequestAsync<UsersResource.LabelsResource.ListRequest, ListLabelsResponse>(labelsRequest, cancellationToken))
-			.Map(labelsResponse => MapToModel(labelsResponse.Labels).ToList() as IReadOnlyList<EmailsFolder>);
+			.Map(labelsResponse => MapToModel(labelsResponse.Labels));
 	}
 
 	public Task<Result<EmailsFolderCount>> GetEmailsFolderCountAsync(string folderId, CancellationToken cancellationToken = default)
@@ -279,14 +300,24 @@ internal sealed class MailService(GoogleServiceAccountCredentials credentials
 		{
 			foreach (var thread in sourceThreads)
 			{
-				var firstEmail = thread.Messages.MinBy(threadMessage => threadMessage.InternalDate);
+				var firstEmail = thread.Messages.MinBy(threadMessage => threadMessage.InternalDate)!;
 				Debug.Assert(firstEmail is not null);
 
+				var lastEmail = thread.Messages.MinBy(threadMessage => threadMessage.InternalDate)!;
+
+				var firstEmailHeaders = firstEmail.Payload.Headers;
+
 				// for drafts
-				var subject = firstEmail.Payload.Headers
+				var subject = firstEmailHeaders
 					.FirstOrDefault(header => header.Name.Equals(HeaderNames.Subject, StringComparison.OrdinalIgnoreCase));
 
-				yield return new EmailsConversation(thread.Id, subject?.Value);
+				var rawFrom = firstEmailHeaders.First(header => header.Name.Equals(HeaderNames.FromRecipient, StringComparison.OrdinalIgnoreCase));
+				var parsedFrom = MailboxAddress.Parse(rawFrom.Value);
+
+				yield return new EmailsConversation(thread.Id
+					, subject?.Value
+					, DateTimeOffset.FromUnixTimeMilliseconds(lastEmail.InternalDate!.Value)
+					, new EmailRecipient(parsedFrom.Name, parsedFrom.Address));
 			}
 		}
 
@@ -362,29 +393,25 @@ internal sealed class MailService(GoogleServiceAccountCredentials credentials
 			return null;
 		}
 
-		static Email.EmailRecipient MapToRecipientModel(MailboxAddress mailboxAddress
-			, Email.EmailRecipient.EmailRecipientType sourceType) =>
-			new(mailboxAddress.Name, mailboxAddress.Address, sourceType);
+		static EmailRecipient MapToRecipientModel(MailboxAddress mailboxAddress) =>
+			new(mailboxAddress.Name, mailboxAddress.Address);
 
 		static IEnumerable<Email> MapToModel(IEnumerable<Message> sourceMessages)
 		{
-			static IEnumerable<Email.EmailRecipient> TryParseRecipients(IEnumerable<MessagePartHeader> sourceHeaders
+			static void TryParseRecipients(IEnumerable<MessagePartHeader> sourceHeaders
 				, string recipientsHeaderName
-				, Email.EmailRecipient.EmailRecipientType sourceType)
+				, List<EmailRecipient> container)
 			{
 				var rawRecipients = sourceHeaders.FirstOrDefault(header =>
 					header.Name.Equals(recipientsHeaderName, StringComparison.OrdinalIgnoreCase))?.Value;
 
 				if (string.IsNullOrEmpty(rawRecipients))
 				{
-					yield break;
+					return;
 				}
 
 				var parsedEmailAddresses = InternetAddressList.Parse(rawRecipients);
-				foreach (var parsedEmailAddress in parsedEmailAddresses.Mailboxes)
-				{
-					yield return MapToRecipientModel(parsedEmailAddress, sourceType);
-				}
+				container.AddRange(parsedEmailAddresses.Mailboxes.Select(MapToRecipientModel));
 			}
 
 			foreach (var message in sourceMessages)
@@ -402,18 +429,24 @@ internal sealed class MailService(GoogleServiceAccountCredentials credentials
 					header.Name.Equals(HeaderNames.FromRecipient, StringComparison.OrdinalIgnoreCase)).Value;
 				var parsedFromEmailAddress = MailboxAddress.Parse(rawFromEmailAddress);
 
-				var recipients = Enumerable.Empty<Email.EmailRecipient>();
-				recipients = recipients.Append(MapToRecipientModel(parsedFromEmailAddress, Email.EmailRecipient.EmailRecipientType.From));
-				recipients = recipients.Concat(TryParseRecipients(headers, HeaderNames.ToRecipients, Email.EmailRecipient.EmailRecipientType.To));
-				recipients = recipients.Concat(TryParseRecipients(headers, HeaderNames.CcRecipients, Email.EmailRecipient.EmailRecipientType.Cc));
-				recipients = recipients.Concat(TryParseRecipients(headers, HeaderNames.BccRecipients, Email.EmailRecipient.EmailRecipientType.Bcc));
+				var from = MapToRecipientModel(parsedFromEmailAddress);
+				var to = new List<EmailRecipient>();
+				var cc = new List<EmailRecipient>();
+				var bcc = new List<EmailRecipient>();
+
+				TryParseRecipients(headers, HeaderNames.ToRecipients, to);
+				TryParseRecipients(headers, HeaderNames.CcRecipients, cc);
+				TryParseRecipients(headers, HeaderNames.BccRecipients, bcc);
 
 				var htmlBody = TryGetHtmlBody(messagePayload);
-				var emailAddressesList = recipients.ToList();
 
 				yield return new Email(message.Id
 					, htmlBody
-					, emailAddressesList);
+					, DateTimeOffset.FromUnixTimeMilliseconds(message.InternalDate!.Value)
+					, from
+					, to
+					, cc
+					, bcc);
 			}
 		}
 

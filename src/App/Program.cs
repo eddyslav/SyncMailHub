@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 using Microsoft.AspNetCore.Http.Json;
 
 using Carter;
@@ -32,6 +35,7 @@ builder.Services
 	{
 		var jsonSerializerOptions = options.SerializerOptions;
 		jsonSerializerOptions.Converters.Add(new EntityIdJsonConverter());
+		jsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
 	})
 	.AddAuthorization()
 	.AddCors()

@@ -2,18 +2,8 @@
 
 public sealed record Email(string Id
 	, string? HtmlBody
-	, IReadOnlyList<Email.EmailRecipient> Recipients)
-{
-	public sealed record EmailRecipient(string? Name
-		, string EmailAddress
-		, EmailRecipient.EmailRecipientType Type)
-	{
-		public enum EmailRecipientType
-		{
-			From = 0,
-			To,
-			Cc,
-			Bcc,
-		}
-	}
-}
+	, DateTimeOffset Date // sent/received
+	, EmailRecipient From
+	, IReadOnlyList<EmailRecipient> To
+	, IReadOnlyList<EmailRecipient> Cc
+	, IReadOnlyList<EmailRecipient> Bcc);

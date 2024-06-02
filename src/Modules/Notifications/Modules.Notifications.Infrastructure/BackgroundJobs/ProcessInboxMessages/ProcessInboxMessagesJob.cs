@@ -80,7 +80,7 @@ internal sealed class ProcessInboxMessagesJob(NotificationsDbContext dbContext
 		{
 			foreach (var eventHandler in state.EventHandlers)
 			{
-				await eventHandler.Handle(state.IntegrationEvent, cancellationToken);
+				await eventHandler.HandleAsync(state.IntegrationEvent, cancellationToken);
 			}
 		}
 			, state
