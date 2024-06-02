@@ -1,0 +1,30 @@
+.folder-list,
+.subFolder-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+  overflow-y: scroll;
+}
+
+.folder {
+  padding: 1rem 2rem;
+  cursor: pointer;
+  display: flex;
+}
+
+.folder__header {
+  display: flex;
+  gap: 1rem;
+}
+
+.folder--selected,
+.folder:hover:not(:has(.subFolder-list)) {
+  background-color: rgba(32, 33, 36, 0.059);
+  border-radius: 100px;
+}
+
+.subFolder-list {
+  margin-left: 0.5rem;
+  margin-top: 1rem;
+}

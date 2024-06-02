@@ -1,0 +1,49 @@
+.conversations-page {
+  display: flex;
+  flex-direction: column;
+}
+
+.conversations__actions {
+  border-bottom: 1px solid #ccc;
+  padding: 1rem;
+}
+
+.btn-reload {
+  font-size: 1.4rem;
+  padding: 1.4rem;
+}
+
+.conversations-content {
+  padding: 1rem;
+}
+
+.conversations-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.conversations--empty {
+  font-size: 1.4rem;
+  font-family: cursive;
+}
+
+.conversation {
+  font-size: 1.4rem;
+  padding: 1.4rem 1rem;
+  background-color: #e9ecef;
+  border-radius: 9px;
+  overflow-x: hidden;
+}
+
+.conversation__from {
+  font-weight: 600;
+  margin-right: 1.2rem;
+}
+
+.conversation:hover,
+.conversation--active {
+  background-color: #adb5bd;
+  cursor: pointer;
+}

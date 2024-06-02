@@ -14,9 +14,9 @@ services:
       - ~/.aspnet/https:/https:ro
       - ./.containers/logs:/app/logs
 
-  # syncmailhub-app:
-  #   ports:
-  #     - 3000:3000
+  syncmailhub-app:
+    ports:
+      - 3000:3000
 
   syncmailhub-db:
     environment:

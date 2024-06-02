@@ -1,0 +1,7 @@
+.main {
+  background-color: #f7f7f7;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

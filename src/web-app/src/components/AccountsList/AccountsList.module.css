@@ -1,0 +1,48 @@
+.accounts {
+  margin: auto;
+  width: 120rem;
+  max-width: 120rem;
+  background-color: #fff;
+  box-shadow: 0 2.5rem 8rem 2rem rgba(0, 0, 0, 0.06);
+  padding: 5rem 7rem;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.accounts-list {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  list-style: none;
+  gap: 1.4rem;
+}
+
+.account-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.2rem 3rem;
+  font-size: 1.6rem;
+  border-radius: 9px;
+  background-color: #40c057;
+  font-weight: 600;
+  color: #fff;
+  transition: all 0.3s;
+}
+
+.account-item:hover,
+.account-item:active {
+  background-color: #2f9e44;
+  transform: translateY(-3px);
+  box-shadow: 0 1rem 2rem rgba(0, 0, 0, 0.15);
+}
+
+.account-item-link:link,
+.account-item-link:visited {
+  text-decoration: none;
+  color: #fff;
+}

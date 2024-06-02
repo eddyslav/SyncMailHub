@@ -1,0 +1,20 @@
+.email-attributes {
+  padding: 1.2rem;
+}
+
+.email-attribute {
+}
+
+.email-attribute__header {
+  font-weight: 600;
+}
+
+.email-attribute__value {
+}
+
+.email-attributes__list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}

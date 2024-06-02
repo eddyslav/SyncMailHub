@@ -10,14 +10,14 @@ services:
     depends_on:
       - syncmailhub-db
 
-  # syncmailhub-app:
-  #   image: ${DOCKER_REGISTRY-}app
-  #   container_name: syncmailhub-app
-  #   build:
-  #     context: src/web-app
-  #     dockerfile: Dockerfile
-  #   depends_on:
-  #     - syncmailhub-api
+  syncmailhub-app:
+    image: ${DOCKER_REGISTRY-}app
+    container_name: syncmailhub-app
+    build:
+      context: src/web-app
+      dockerfile: Dockerfile
+    depends_on:
+      - syncmailhub-api
 
   syncmailhub-db:
     image: postgres:latest

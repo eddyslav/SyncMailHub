@@ -1,0 +1,64 @@
+.emails-page {
+  display: flex;
+  flex-direction: column;
+}
+
+.emails-actions {
+  padding: 1rem;
+  border-bottom: 1px solid #ccc;
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+}
+
+.btn-reply {
+  font-size: 1.4rem;
+  padding: 1.4rem 3.2rem;
+}
+
+.emails-list {
+  padding: 1rem;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2.4rem;
+}
+
+.email {
+  padding: 1.5rem;
+  border-radius: 9px;
+  border: 1px solid #000;
+  max-height: 60rem;
+}
+
+.email__header {
+  display: flex;
+  flex-direction: row;
+  padding: 1.2rem;
+  border: 1px solid #000;
+  border-radius: 9px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.btn-delete {
+  font-size: 1.4rem;
+  padding: 1.4rem 3.2rem;
+  background-color: #fa5252;
+}
+
+.btn-delete:active,
+.btn-delete:hover {
+  background-color: #e03131;
+}
+
+.email__body {
+  padding: 3rem;
+  display: flex;
+  overflow: hidden;
+}
+
+.email__body__frame {
+  flex-grow: 1;
+  border: none;
+}
